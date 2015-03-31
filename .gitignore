@@ -1,0 +1,10 @@
+# Created by https://www.gitignore.io
+
+
+## Directory-based project format:
+out/
+Debug/
+.settings/
+.cproject
+.project
+

@@ -1,0 +1,35 @@
+###INSTALLAZIONE
+- wget https://www.open-mpi.org/software/ompi/v1.8/downloads/openmpi-1.8.1.tar.gz
+- sudo apt-get install libibnetdisc-dev
+- tar -xvf openmpi-1.8.1.tar.gz
+- cd openmpi-1.8.1.tar.gz
+- ./configure --prefix="/home/$USER/.openmpi"
+- make
+- sudo make install
+- gedit .profile
+  	 export PATH="$PATH:/home/$USER/.openmpi/bin"
+  	 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/home/$USER/.openmpi/lib/"
+- TEST: mpirun
+
+###AMBIENTE
+- Download ECLIPSE C/C++ Version
+- Install PTP plugin for parallel programming
+- Set the include directory of MPI installation in Elipse properties
+
+##COMPILAZIONE DA TERMINALE
+- mpicc OUT -o FILE
+
+##ESECUZIONE MULTITHREADING DA TERMINALE
+- PATH/mpirun -nc NUM OUT
+
+##ESECUZIONE IN CLUSTER (PC STESSA LAN, STESSO OS, STESSO ACCOUNT, STESSA VERS OPENMPI, STESSI PATH)
+- INSTALL SSH DEAMON IN OTHERS PCs
+- ssh remoteHost localHost
+- PATH/mpirun -host LIST_HOSTS OUT
+
+##CRITERI PER ESECUZIONE IN CLUSTER
+- Same version of openMPI
+- Same version of OS
+- Same account name
+- Same paths
+- They must have the executable in the same position
