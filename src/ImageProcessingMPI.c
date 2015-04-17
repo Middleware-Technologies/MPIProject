@@ -19,52 +19,11 @@ PATH/mpirun -np NUM OUT
 #include <string.h>
 #include <pgm.h>
 
-/*
-  Open a MPG file and re-write a new file with different color intensity
- */
-void processPGM(int argc, char *argv[])
-{
-    //2d array that contains image's data
-    gray **image;
-
-    //Maximum value of our input image, probably
-    gray max;
-
-    //Num cols,row,matrix's indices
-    int cols, rows,y,x;
-
-    //Initialize libpgm
-    pgm_init(&argc, argv);
-   
-    //Read the image
-    FILE *f=fopen("../img/imm.pgm","r");
-    image = pgm_readpgm(f, &cols, &rows, &max);
-
-    for (y=0; y<rows; y++)
-      {
-        for (x=0; x<cols; x++)
-	  {
-            image[y][x] = image[y][x]/2;
-	    printf("%d ",image[y][x]);
-	  }
-	printf("\n");
-      }
-
-    //Write the modified image to another file */
-    FILE *fout=fopen("../img/imm2.pgm","w");
-    pgm_writepgm(fout, image, cols, rows, max, 1);
-
-
-    /* cleanup */
-    pgm_freearray(image, rows);
-}
-
 
 int main(int argc, char *argv[])
 {
-	int			my_rank;	    	/* rank of process */
-	int			num_procs;		    /* number of processes */
-
+	int my_rank;	    /* rank of process */
+	int num_procs;	    /* number of processes */
 
 	/* start up MPI */
 	MPI_Init(&argc, &argv);
@@ -79,13 +38,50 @@ int main(int argc, char *argv[])
 
 	if (my_rank == 0) //IF I'M MASTER THREAD
 	{
-		//(SEND PART OF IMAGE TO OTHER THREAD)
-		//1 - READ MY PORTION OF IMAGE
-		//2 - PROCESS IMAGE WITH OPENMPFOR INCREMENT PERFORMANCE
-		//3 - ATTENDS PART OF IMAGE FROM OTHER THREAD
-		//4 - CREATE FINAL IMAGE
+	  //GET THE MATRIX
+	  //2d array that contains image's data
+	  gray **image;
 
-	  processPGM(argc,argv);
+	  //Maximum value of our input image, probably
+	  gray max;
+
+	  //Num cols,row,matrix's indices
+	  int cols, rows,y,x;
+
+	  //Initialize libpgm
+	  pgm_init(&argc, argv);
+   
+	  //Read the image
+	  FILE *f=fopen("imm.pgm","r");
+	  image = pgm_readpgm(f, &cols, &rows, &max);
+	  int imageMatrix[rows][cols];
+
+	  for (y=0; y<rows; y++)
+	    {
+	      for (x=0; x<cols; x++)
+		{
+		  imageMatrix[y][x] = image[y][x];
+		  if( imageMatrix[y][x]<10)
+		    printf("%d  ",imageMatrix[y][x]);
+		  else
+		    printf("%d ",imageMatrix[y][x]);
+		}
+	      printf("\n");
+	    }
+	  pgm_freearray(image, rows);
+	
+	  //1 - SEND PORTION OF THE MATRIX TO OTHER THREADS (WITH OPENMP)
+
+	  //2 - PROCESS IMAGE WITH OPENMP FOR INCREMENT PERFORMANCE
+
+	  //3 - ATTENDS PART OF IMAGE FROM OTHER THREAD
+
+	  //4 - CREATE FINAL IMAGE
+	  // FILE *fout=fopen("imm2.pgm","w");
+	  //pgm_writepgm(fout, image, cols, rows, max, 1);
+
+
+
 	}
 	else //IF I'M ANOTHER THREAD
 	{
