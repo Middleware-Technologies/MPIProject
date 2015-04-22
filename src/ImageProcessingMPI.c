@@ -12,87 +12,91 @@ mpicc src/ImageProcessingMPI.c -o out/OUT -I /usr/local/netpbm/include/ -L /usr/
 
 ##ESECUZIONE MULTITHREADING DA TERMINALE
 PATH/mpirun -np NUM OUT
+
+ Read: http://stackoverflow.com/questions/9269399/sending-blocks-of-2d-array-in-c-using-mpi
  */
 
 #include <mpi.h>
 #include <stdio.h>
 #include <string.h>
-#include <pgm.h>
+#include <pam.h>
 
+int main(int argc, char *argv[]) {
+	int my_rank; /* rank of process */
+	int num_procs; /* number of processes */
 
-int main(int argc, char *argv[])
-{
-	int my_rank;	    /* rank of process */
-	int num_procs;	    /* number of processes */
+	// The two pam, one for input and one for output,structures
+	// containing infos about the image
+	struct pam inpam, outpam;
+
+	// The 3D array containing the values
+	tuple ** imageArray;
+
+	// Indexes to browse the array
+	unsigned int row, column, plane;
 
 	/* start up MPI */
 	MPI_Init(&argc, &argv);
 	/* find out process rank */
-	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank); 
+	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 	/* find out number of processes */
-	MPI_Comm_size(MPI_COMM_WORLD, &num_procs); 
+	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 
+	printf("Process: %d - Total Process: %d\n", my_rank, num_procs);
 
-	printf("Process: %d - Total Process: %d\n",my_rank,num_procs);
+	if (my_rank == 0) {
+		// IF I'M MASTER THREAD
 
+		//1 - SEND PORTION OF THE MATRIX TO OTHER THREADS (WITH OPENMP)
 
-	if (my_rank == 0) //IF I'M MASTER THREAD
-	{
-	  //GET THE MATRIX
-	  //2d array that contains image's data
-	  gray **image;
+		//2 - PROCESS IMAGE WITH OPENMP FOR INCREMENT PERFORMANCE
 
-	  //Maximum value of our input image, probably
-	  gray max;
+		//3 - ATTENDS PART OF IMAGE FROM OTHER THREAD
 
-	  //Num cols,row,matrix's indices
-	  int cols, rows,y,x;
+		//4 - CREATE FINAL IMAGE
 
-	  //Initialize libpgm
-	  pgm_init(&argc, argv);
-   
-	  //Read the image
-	  FILE *f=fopen("imm.pgm","r");
-	  image = pgm_readpgm(f, &cols, &rows, &max);
-	  int imageMatrix[rows][cols];
+		// Initialize libpgm
+		pgm_init(&argc, argv);
 
-	  for (y=0; y<rows; y++)
-	    {
-	      for (x=0; x<cols; x++)
-		{
-		  imageMatrix[y][x] = image[y][x];
-		  if( imageMatrix[y][x]<10)
-		    printf("%d  ",imageMatrix[y][x]);
-		  else
-		    printf("%d ",imageMatrix[y][x]);
+		// Read the input image and pass
+		inpam.file = fopen("../img/imm.pgm", "r");
+		imageArray = pnm_readpam(inpam.file, &inpam, PAM_STRUCT_SIZE(tuple_type));
+
+		// Prepare the struct for the output image
+		outpam = inpam;
+		outpam.file = fopen("../img/imm2.pgm", "w");
+		outpam.plainformat = 1; // Force plain, so that we, useless meatbags, can read what is being written
+
+		// Loops!
+		for (row = 0; row < inpam.height; row++) {
+
+			for (column = 0; column < inpam.width; ++column) {
+
+				for (plane = 0; plane < inpam.depth; ++plane) {
+					// We don't actually use the 3rd dimension... I miss the 90s!
+					imageArray[row][column][plane] = imageArray[row][column][plane]/2;
+				}
+			}
 		}
-	      printf("\n");
-	    }
-	  pgm_freearray(image, rows);
-	
-	  //1 - SEND PORTION OF THE MATRIX TO OTHER THREADS (WITH OPENMP)
 
-	  //2 - PROCESS IMAGE WITH OPENMP FOR INCREMENT PERFORMANCE
+		// Write all the resulting values into the file
+		pnm_writepam(&outpam, imageArray);
 
-	  //3 - ATTENDS PART OF IMAGE FROM OTHER THREAD
+		// Free space
+		pnm_freepamarray(imageArray, &inpam);
 
-	  //4 - CREATE FINAL IMAGE
-	  // FILE *fout=fopen("imm2.pgm","w");
-	  //pgm_writepgm(fout, image, cols, rows, max, 1);
+	} else {
 
-
-
-	}
-	else //IF I'M ANOTHER THREAD
-	{
 		//1 - READ MY PORTION OF IMAGE/RECEIVE PORTION FROM MASTER
 		//1 - READ MY PORTION OF IMAGE
 		//2 - PROCESS IMAGE WITH OPENMPFOR INCREMENT PERFORMANCE
 		//3 - SEND FINAL PART OF IMAGE TO MASTER THREAD
 	}
 
+
 	/* shut down MPI */
-	MPI_Finalize(); 
+	MPI_Finalize();
+
 	return 0;
 }
 
