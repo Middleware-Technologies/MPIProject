@@ -21,7 +21,8 @@ PATH/mpirun -np NUM OUT
 #include <string.h>
 #include <pam.h>
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) 
+{
 	int my_rank; /* rank of process */
 	int num_procs; /* number of processes */
 
@@ -44,40 +45,62 @@ int main(int argc, char *argv[]) {
 
 	printf("Process: %d - Total Process: %d\n", my_rank, num_procs);
 
-	if (my_rank == 0) {
-		// IF I'M MASTER THREAD
+	if (my_rank == 0) {		// IF I'M MASTER THREAD
+		//0 - READ FILE'S MATRIX
+		pgm_init(&argc, argv);
 
-		//1 - SEND PORTION OF THE MATRIX TO OTHER THREADS (WITH OPENMP)
+		// Read the input image and pass
+		inpam.file = fopen("img/imm.pgm", "r");
+		imageArray = pnm_readpam(inpam.file, &inpam, PAM_STRUCT_SIZE(tuple_type));
+		
+		int imageIntArray[inpam.height][inpam.width];
+		
+		//TEST: Print Matrix
+		for (row = 0; row < inpam.height; row++) {
+			for (column = 0; column < inpam.width; column++) {
+				for (plane = 0; plane < inpam.depth; ++plane) {
+				  int val=(int)imageArray[row][column][plane];
+				  imageIntArray[row][column]=val;
+				  printf("%d ",val);
+				}
+			}
+			printf("\n");
+		}
+		printf("\n");printf("\n");
+	       
+
+		//1 - SEND PORTION OF THE MATRIX TO OTHER THREADS  - TEST WITH 2 PROCESS
+		int index;
+		int numRows;   
+
+		if(inpam.height%2==0)
+		  numRows=inpam.height/2;
+		else
+		  numRows=(inpam.height-1)/2;
+		  
+		for(index=1;index<num_procs;index++)
+		{
+		  //Create a packet to send to index thread
+		  int rows=(inpam.height-numRows);
+		  int columns=(inpam.width);
+		  int param[2]={rows,columns};
+		  
+		  //First: send packet's dimension
+		  MPI_Send(param,2,MPI_INT,index,1,MPI_COMM_WORLD);
+		  //Send Packet
+		  MPI_Send(&imageIntArray[numRows][0],dimension,MPI_INT,index,2,MPI_COMM_WORLD);
+ 
+		}
+		
 
 		//2 - PROCESS IMAGE WITH OPENMP FOR INCREMENT PERFORMANCE
 
 		//3 - ATTENDS PART OF IMAGE FROM OTHER THREAD
-
+		
 		//4 - CREATE FINAL IMAGE
-
-		// Initialize libpgm
-		pgm_init(&argc, argv);
-
-		// Read the input image and pass
-		inpam.file = fopen("../img/imm.pgm", "r");
-		imageArray = pnm_readpam(inpam.file, &inpam, PAM_STRUCT_SIZE(tuple_type));
-
-		// Prepare the struct for the output image
 		outpam = inpam;
-		outpam.file = fopen("../img/imm2.pgm", "w");
+		outpam.file = fopen("img/imm2.pgm", "w");
 		outpam.plainformat = 1; // Force plain, so that we, useless meatbags, can read what is being written
-
-		// Loops!
-		for (row = 0; row < inpam.height; row++) {
-
-			for (column = 0; column < inpam.width; ++column) {
-
-				for (plane = 0; plane < inpam.depth; ++plane) {
-					// We don't actually use the 3rd dimension... I miss the 90s!
-					imageArray[row][column][plane] = imageArray[row][column][plane]/2;
-				}
-			}
-		}
 
 		// Write all the resulting values into the file
 		pnm_writepam(&outpam, imageArray);
@@ -85,12 +108,32 @@ int main(int argc, char *argv[]) {
 		// Free space
 		pnm_freepamarray(imageArray, &inpam);
 
-	} else {
+	} 
+	else 
+	{
+	  //1 - RECEIVE PORTION FROM MASTER
+	  MPI_Status stat;
+	  int param[2];
+	  MPI_Recv(param,2,MPI_INT,0,1,MPI_COMM_WORLD,&stat);
 
-		//1 - READ MY PORTION OF IMAGE/RECEIVE PORTION FROM MASTER
-		//1 - READ MY PORTION OF IMAGE
-		//2 - PROCESS IMAGE WITH OPENMPFOR INCREMENT PERFORMANCE
-		//3 - SEND FINAL PART OF IMAGE TO MASTER THREAD
+	  int packet[param[0]][param[1]];
+	  MPI_Recv(packet,param[0]*param[1],MPI_INT,0,2,MPI_COMM_WORLD,&stat);
+
+	  int i,j;
+	  printf("RECEIVED\n");
+	  for(i=0;i<param[0];i++)
+	  {
+	    for(j=0;j<param[1];j++)
+	      {
+	      printf("%d ",packet[i][j]);
+	      }
+	    printf("\n");
+	  }
+	  printf("\n");printf("\n");printf("\n");printf("\n");
+
+
+	  //2 - PROCESS IMAGE WITH OPENMPFOR INCREMENT PERFORMANCE
+	  //3 - SEND FINAL PART OF IMAGE TO MASTER THREAD
 	}
 
 
@@ -99,5 +142,3 @@ int main(int argc, char *argv[]) {
 
 	return 0;
 }
-
-
