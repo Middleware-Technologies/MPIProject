@@ -11,7 +11,12 @@
 mpicc src/ImageProcessingMPI.c -o out/OUT -I /usr/local/netpbm/include/ -L /usr/local/netpbm/lib -lnetpbm -lm
 
 ##ESECUZIONE MULTITHREADING DA TERMINALE
-PATH/mpirun -np NUM OUT
+mpirun -np NUM OUT
+
+##ESECUZIONE IN CLUSTER
+PATH/mpirun -host LIST OUT
+/home/middleware/.openmpi/bin/mpirun --host 192.168.0.100,192.168.0.102 out/OUT
+
 
  Read: http://stackoverflow.com/questions/9269399/sending-blocks-of-2d-array-in-c-using-mpi
  */
@@ -25,10 +30,10 @@ PATH/mpirun -np NUM OUT
 
 int applyCorrection(int input, double gamma, int depth)
 {
-  double pot=1/((double)gamma);
-  double base=(double)input/(double)depth;
-  double val= depth* pow(base,pot);
-  return (int)val;
+	double pot=1/((double)gamma);
+	double base=(double)input/(double)depth;
+	double val= depth* pow(base,pot);
+	return (int)val;
 }
 
 int main(int argc, char *argv[]) 
@@ -93,15 +98,15 @@ int main(int argc, char *argv[])
 		  
 		for(index=1;index<num_procs;index++) 
 		{
-		  //Create a packet to send to index thread
-		  int param[3]={inpam.height-numRows,inpam.width,(int)inpam.maxval};
-		  
-		  //First: send packet's dimension {numRowsSend,numColsSend,depth}
-		  MPI_Send(param,3,MPI_INT,index,1,MPI_COMM_WORLD);
-		  
-		  //Send Packet
-		  int dimension=(inpam.height-numRows)*inpam.width;
-		  MPI_Send(&imageIntArray[numRows][0],dimension,MPI_INT,index,2,MPI_COMM_WORLD);
+			//Create a packet to send to index thread
+			int param[3]={inpam.height-numRows,inpam.width,(int)inpam.maxval};
+
+			//First: send packet's dimension {numRowsSend,numColsSend,depth}
+			MPI_Send(param,3,MPI_INT,index,1,MPI_COMM_WORLD);
+
+			//Send Packet
+			int dimension=(inpam.height-numRows)*inpam.width;
+			MPI_Send(&imageIntArray[numRows][0],dimension,MPI_INT,index,2,MPI_COMM_WORLD);
 		}
 
 		//2 - PROCESS IMAGE WITH OPENMP FOR INCREMENT PERFORMANCE
@@ -125,49 +130,49 @@ int main(int argc, char *argv[])
 	} 
 	else 
 	{
-	  //1 - RECEIVE PORTION FROM MASTER
-	  MPI_Status stat;
-	  int param[3];
-	  MPI_Recv(param,3,MPI_INT,0,1,MPI_COMM_WORLD,&stat);
+		//1 - RECEIVE PORTION FROM MASTER
+		MPI_Status stat;
+		int param[3];
+		MPI_Recv(param,3,MPI_INT,0,1,MPI_COMM_WORLD,&stat);
 
-	  int packet[param[0]][param[1]];
-	  MPI_Recv(packet,param[0]*param[1],MPI_INT,0,2,MPI_COMM_WORLD,&stat);
+		int packet[param[0]][param[1]];
+		MPI_Recv(packet,param[0]*param[1],MPI_INT,0,2,MPI_COMM_WORLD,&stat);
 
-	  int i,j;
-	  printf("RECEIVED: depth=%d rows=%d columsn=%d \n",param[2],param[0],param[1]);
-	  for(i=0;i<param[0];i++)
-	  {
-	    for(j=0;j<param[1];j++)
-	      {
-		if(packet[i][j]<10)
-		  printf("%d  ",packet[i][j]);
-		else
-		  printf("%d ",packet[i][j]);
-	      }
-	    printf("\n");
-	  }
-	  printf("\n");
-
-
-	  //2 - PROCESS IMAGE WITH OPENMPFOR INCREMENT PERFORMANCE
-	  printf("CORRECTED\n");
-	  for(i=0;i<param[0];i++)
-	  {
-	    for(j=0;j<param[1];j++)
-	      {
-		int val=applyCorrection(packet[i][j],2,param[2]);
-		packet[i][j]=val;
-		if(packet[i][j]<10)
-		  printf("%d  ",packet[i][j]);
-		else
-		  printf("%d ",packet[i][j]);
-	      }
-	    printf("\n");
-	  }
+		int i,j;
+		printf("RECEIVED: depth=%d rows=%d columsn=%d \n",param[2],param[0],param[1]);
+		for(i=0;i<param[0];i++)
+		{
+			for(j=0;j<param[1];j++)
+			{
+				if(packet[i][j]<10)
+			  		printf("%d  ",packet[i][j]);
+				else
+			  		printf("%d ",packet[i][j]);
+			}
+			printf("\n");
+		}
+		printf("\n");
 
 
-	  //3 - SEND FINAL PART OF IMAGE TO MASTER THREAD
-	  //...
+		//2 - PROCESS IMAGE WITH OPENMPFOR INCREMENT PERFORMANCE
+		printf("CORRECTED\n");
+		for(i=0;i<param[0];i++)
+		{
+			for(j=0;j<param[1];j++)
+			{
+				int val=applyCorrection(packet[i][j],2,param[2]);
+				packet[i][j]=val;
+				if(packet[i][j]<10)
+		  			printf("%d  ",packet[i][j]);
+				else
+		  			printf("%d ",packet[i][j]);
+			}
+			printf("\n");
+		}
+
+
+		//3 - SEND FINAL PART OF IMAGE TO MASTER THREAD
+		//...
 	}
 
 	/* shut down MPI */
