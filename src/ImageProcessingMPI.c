@@ -17,9 +17,8 @@ mpirun -np NUM OUT
 PATH/mpirun -host LIST OUT
 /home/middleware/.openmpi/bin/mpirun --host 192.168.0.100,192.168.0.102 out/OUT
 
-
- Read: http://stackoverflow.com/questions/9269399/sending-blocks-of-2d-array-in-c-using-mpi
- */
+Read: http://stackoverflow.com/questions/9269399/sending-blocks-of-2d-array-in-c-using-mpi
+*/
 
 #include <mpi.h>
 #include <stdio.h>
@@ -50,7 +49,7 @@ int main(int argc, char *argv[])
 	printf("Process: %d - Total Process: %d\n", my_rank, num_procs);
 
 	if (my_rank == 0) {		// IF I'M MASTER THREAD
-	        //Data Structure
+	        //Data Structure and utilities
 	        gray **imageArray;
 		gray max;      
 	        unsigned int row, column,x,y;
@@ -75,30 +74,26 @@ int main(int argc, char *argv[])
 		}
 		printf("\n");
 
-		//1 - SEND PORTION OF THE MATRIX TO OTHER THREADS - TEST WITH 2 PROCESS
-		int index;     
-		
+		//1 - SEND PORTION OF THE MATRIX TO OTHER THREADS - TEST WITH 2 PROCESS		
 		//How many rows we need to send to every process?
-		  
+		int numRow=3;
+		
+		int index;  
 		for(index=1;index<num_procs;index++) 
 		{
-			//Create a packet to send to index thread
-			//First: send packet's dimension {numRowsSend,numColsSend,depth}
-			int param[3]={3,column,(int)max};
-			int numRow=3;
+			//First: send packet's dimension {numRows,numCols,depth}
+			int param[3]={numRow,column,(int)max};
 			MPI_Send(param,numRow,MPI_INT,index,1,MPI_COMM_WORLD);
 
 			//Send Packet
-			int dimension=numRow*column;
-			MPI_Send(&imageArray[0][0],dimension,MPI_INT,index,2,MPI_COMM_WORLD);
+			MPI_Send(&imageArray[0][0],numRow*column,MPI_INT,index,2,MPI_COMM_WORLD);
 		}
 
 		//2 - PROCESS IMAGE WITH OPENMP FOR INCREMENT PERFORMANCE
 
-		//3 - ATTENDS PART OF IMAGE FROM OTHER THREAD AND UPDATE imageArray matrix
+		//3 - ATTENDS PART OF IMAGE FROM OTHER THREAD AND UPDATE imageArray MATRIX
 		
 		//4 - CREATE FINAL IMAGE
-
 
 		// Free space
 		pgm_freearray(imageArray, row);
@@ -107,6 +102,7 @@ int main(int argc, char *argv[])
 	{
 		//1 - RECEIVE PORTION FROM MASTER
 		MPI_Status stat;
+		
 		int param[3];
 		MPI_Recv(param,3,MPI_INT,0,1,MPI_COMM_WORLD,&stat);
 
@@ -114,6 +110,8 @@ int main(int argc, char *argv[])
 		MPI_Recv(packet,param[0]*param[1],MPI_INT,0,2,MPI_COMM_WORLD,&stat);
 
 		int i,j;
+		
+		//TEST: Print Packet		
 		printf("THREAD %d: RECEIVED: depth=%d rows=%d columsn=%d \n",my_rank,param[2],param[0],param[1]);
 		for(i=0;i<param[0];i++)
 		{
@@ -127,23 +125,16 @@ int main(int argc, char *argv[])
 			printf("\n \n");
 		}
 
-		//2 - PROCESS IMAGE WITH OPENMPFOR INCREMENT PERFORMANCE
-		/*printf("CORRECTED\n");
-		
+		//2 - PROCESS IMAGE WITH OPENMPFOR INCREMENT PERFORMANCE		
 		for(i=0;i<param[0];i++)
 		{
 			for(j=0;j<param[1];j++)
 			{
 				int val=applyCorrection(packet[i][j],2,param[2]);
 				packet[i][j]=val;
-				if(packet[i][j]<10)
-		  			printf("%lu  ",packet[i][j]);
-				else
-		  			printf("%lu ",packet[i][j]);
 			}
-			printf("\n");
 		}
-		*/
+		
 
 		//3 - SEND FINAL PART OF IMAGE TO MASTER THREAD
 		//...
