@@ -30,8 +30,7 @@ Read: http://stackoverflow.com/questions/9269399/sending-blocks-of-2d-array-in-c
 int applyCorrection(int input, double gamma, int depth)
 {
 	double base=(double)input/(double)depth;
-	double val= depth* pow(base,1/gamma);
-	return (int)val;
+	return (int)(depth* pow(base,1/gamma));
 }
 
 int main(int argc, char *argv[]) 
@@ -63,12 +62,14 @@ int main(int argc, char *argv[])
 		
 		//TEST: Print Matrix
 		printf("Thread 0 Read:\n");
-		for (x = 0; x < row; x++) {
-			for (y = 0; y < column; y++) {				  				 
-			    if(imageArray[x][y]<10)
-			      printf("%d  ",imageArray[x][y]);
-			    else
-			      printf("%d ",imageArray[x][y]);		  
+		for (x = 0; x < row; x++) 
+		{
+			for (y = 0; y < column; y++) 
+			{				  				 
+				if(imageArray[x][y]<10)
+					printf("%d  ",imageArray[x][y]);
+				else
+					printf("%d ",imageArray[x][y]);		  
 			}
 			printf("\n");
 		}
@@ -109,10 +110,8 @@ int main(int argc, char *argv[])
 		int packet[param[0]][param[1]];
 		MPI_Recv(packet,param[0]*param[1],MPI_INT,0,2,MPI_COMM_WORLD,&stat);
 
-		int i,j;
-		
-		//TEST: Print Packet		
-		printf("THREAD %d: RECEIVED: depth=%d rows=%d columsn=%d \n",my_rank,param[2],param[0],param[1]);
+		//2 - PROCESS IMAGE WITH OPENMPFOR INCREMENT PERFORMANCE
+		int i,j;		
 		for(i=0;i<param[0];i++)
 		{
 			for(j=0;j<param[1];j++)
@@ -121,18 +120,10 @@ int main(int argc, char *argv[])
 			  		printf("%d  ",packet[i][j]);
 				else
 			  		printf("%d ",packet[i][j]);
-			}
-			printf("\n \n");
-		}
-
-		//2 - PROCESS IMAGE WITH OPENMPFOR INCREMENT PERFORMANCE		
-		for(i=0;i<param[0];i++)
-		{
-			for(j=0;j<param[1];j++)
-			{
 				int val=applyCorrection(packet[i][j],2,param[2]);
 				packet[i][j]=val;
 			}
+			printf("\n");
 		}
 		
 
