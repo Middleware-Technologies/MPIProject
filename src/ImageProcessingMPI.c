@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
 		*/
 		
 		
-		//1 - SEND PORTION OF THE MATRIX TO OTHER THREADS - TEST WITH 2 PROCESS		
+		//1 - SEND PORTION OF THE MATRIX TO OTHER THREADS	
 		int numRow=round((double)row/num_procs);
 		
 		int index;  
