@@ -1,15 +1,18 @@
-###INSTALLAZIONE
-- wget https://www.open-mpi.org/software/ompi/v1.8/downloads/openmpi-1.8.1.tar.gz
-- sudo apt-get install libibnetdisc-dev
-- tar -xvf openmpi-1.8.1.tar.gz
-- cd openmpi-1.8.1.tar.gz
-- ./configure --prefix="/home/$USER/.openmpi"
-- make
-- sudo make install
-- gedit .profile
-  	 export PATH="$PATH:/home/$USER/.openmpi/bin"
-  	 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/home/$USER/.openmpi/lib/"
-- TEST: mpirun
+### INSTALLAZIONE
+
+
+### OPENMPI
+- sudo apt-get install openmpi-bin libopenmpi-dev
+
+### LIBNETPBM
+- sudo apt-get install subversion
+- svn checkout http://svn.code.sf.net/p/netpbm/code/stable netpbm
+- cd ./netpbm
+- sudo apt-get install flex libtiff-dev libpng-dev libxml2-dev libx11-dev
+- ./configure
+- sudo make
+- sudo make package
+- sudo ./installnetpbm
 
 ###AMBIENTE
 - Download ECLIPSE C/C++ Version
@@ -23,6 +26,20 @@
 - PATH/mpirun -nc NUM OUT
 
 ##ESECUZIONE IN CLUSTER (PC STESSA LAN, STESSO OS, STESSO ACCOUNT, STESSA VERS OPENMPI, STESSI PATH)
+
+
+#### Installazione alternativa OpenMPI
+- wget https://www.open-mpi.org/software/ompi/v1.8/downloads/openmpi-1.8.1.tar.gz
+- sudo apt-get install libibnetdisc-dev
+- tar -xvf openmpi-1.8.1.tar.gz
+- cd openmpi-1.8.1.tar.gz
+- ./configure --prefix="/home/$USER/.openmpi"
+- make
+- sudo make install
+- gedit .profile
+  	 export PATH="$PATH:/home/$USER/.openmpi/bin"
+  	 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/home/$USER/.openmpi/lib/"
+- TEST: mpirun
 - INSTALL SSH DEAMON IN OTHERS PCs
 - ssh remoteHost localHost
 - PATH/mpirun -host LIST_HOSTS OUT
