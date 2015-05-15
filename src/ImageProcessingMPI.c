@@ -36,51 +36,28 @@ int applyCorrection(int input, double gamma, int depth)
 int main(int argc, char *argv[]) 
 {
 	int gammaParameter=2;
-	char *fileName="img/imm2.pgm";
+	char *fileName="img/imm.pgm";
 	char *newFileName="img/imm2New.pgm";
-
 
 	int my_rank;        /* rank of process */
 	int num_procs;      /* number of processes */
        
-	
 	MPI_Init(&argc, &argv);          	        /* start up MPI */	
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);	/* find out process rank */
 	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);      /* find out number of processes */
 
 	
 	if (my_rank == 0) {		// IF I'M MASTER THREAD
-	        //Data Structure and utilities
+		// READ FILE'S MATRIX
 	        gray **imageArray;
 		gray max;      
-	        int row, column,x,y;
-
-
-		//0 - READ FILE'S MATRIX
+	        int row, column;
 		pgm_init(&argc, argv);
 
-		// Read the input image and pass
 		FILE *f = fopen(fileName,"r");
 		imageArray = pgm_readpgm(f, &column, &row, &max);
 		
-		//TEST: Initial Matrix
-		/*
-		for (x = 0; x < row; x++) 
-		{
-			for (y = 0; y < column; y++) 
-			{				  				 
-				if(imageArray[x][y]<10)
-					printf("%d  ",imageArray[x][y]);
-				else
-					printf("%d ",imageArray[x][y]);		  
-			}
-			printf("\n");
-		}
-		printf("\n \n");
-		*/
-		
-		
-		//1 - SEND PORTION OF THE MATRIX TO OTHER THREADS	
+		// SEND PORTION OF THE MATRIX TO OTHER THREADS	
 		int numRow=round((double)row/num_procs);
 		
 		int index;  
@@ -95,14 +72,14 @@ int main(int argc, char *argv[])
 			MPI_Send(&imageArray[startRow][0],numRow*column,MPI_INT,index,2,MPI_COMM_WORLD);
 		}
 
-
-		//2,3 - ATTENDS PART OF IMAGE FROM OTHER THREAD AND UPDATE imageArray MATRIX		
+		// ATTENDS PART OF IMAGE FROM OTHER THREAD	
 		#pragma omp parallel num_threads(num_procs)   /* Add -fopenmp in mpicc command */
 		{
 			int my_num=omp_get_thread_num();
 			if(my_num==0)    /* Correct remaining rows */
 			{
 				int startRow=(index-1)*(numRow);
+				int x,y;
 				for (x = startRow; x < row; x++) 
 				{
 					for (y = 0; y < column; y++) 
@@ -120,31 +97,15 @@ int main(int argc, char *argv[])
 			}
 		}
 		
-		//TEST: Final Matrix
-		/*
-		for (x = 0; x < row; x++) 
-		{
-			for (y = 0; y < column; y++) 
-			{				  				 
-				if(imageArray[x][y]<10)
-					printf("%d  ",imageArray[x][y]);
-				else
-					printf("%d ",imageArray[x][y]);		  
-			}
-			printf("\n");
-		}
-		*/
-		
-		//4 - CREATE FINAL IMAGE
+		// CREATE FINAL IMAGE
 		FILE *fout=fopen(newFileName,"w");
     		pgm_writepgm(fout, imageArray, column, row, max, 1);
 			
-		// Free space
 		pgm_freearray(imageArray, row);
 	} 
 	else 
 	{
-		//1 - RECEIVE PORTION FROM MASTER
+		// RECEIVE PORTION FROM MASTER
 		MPI_Status stat;
 		
 		int param[3];
@@ -153,7 +114,7 @@ int main(int argc, char *argv[])
 		int imageArray[param[0]][param[1]];
 		MPI_Recv(imageArray,param[0]*param[1],MPI_INT,0,2,MPI_COMM_WORLD,&stat);
 
-		//2 - PROCESS IMAGE WITH OPENMPFOR INCREMENT PERFORMANCE
+		// PROCESS IMAGE WITH OPENMPFOR INCREMENT PERFORMANCE
 		int x,y;	
 		for(x=0;x<param[0];x++)
 		{
@@ -164,12 +125,11 @@ int main(int argc, char *argv[])
 			}
 		}
 		
-		//3 - SEND FINAL PART OF IMAGE TO MASTER THREAD
+		// SEND FINAL PART OF IMAGE TO MASTER THREAD
 		MPI_Send(&imageArray,param[0]*param[1],MPI_INT,0,my_rank,MPI_COMM_WORLD);
 	}
 
-	/* shut down MPI */
-	MPI_Finalize();
 
+	MPI_Finalize();
 	return 0;
 }
