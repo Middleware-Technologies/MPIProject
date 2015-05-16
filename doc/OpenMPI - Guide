@@ -1,5 +1,4 @@
-### INSTALLAZIONE
-
+## INSTALLAZIONE
 
 ### OPENMPI
 - sudo apt-get install openmpi-bin libopenmpi-dev
@@ -13,6 +12,8 @@
 - sudo make
 - sudo make package
 - sudo ./installnetpbm
+- export LIBRARY_PATH=$LIBRARY_PATH:/usr/local/netpbm/lib
+- export C_INCLUDE_PATH=$C_INCLUDE_PATH:/usr/local/netpbm/include
 
 ###AMBIENTE
 - Download ECLIPSE C/C++ Version
