@@ -8,128 +8,146 @@
                a larger cluster). 
 
 ##COMPILAZIONE DA TERMINALE
-mpicc src/ImageProcessingMPI.c -o out/OUT -I /usr/local/netpbm/include/ -L /usr/local/netpbm/lib -lnetpbm -lm -fopenmp
+> mpicc src/ImageProcessingMPI.c -o out/gammaCorrection -lnetpbm -lm -fopenmp
+
 
 ##ESECUZIONE MULTITHREADING DA TERMINALE
-mpirun -np NUM OUT
+> mpirun -np NUM_THREADS out/gammaCorrection IMG_PATH GAMMA_VALUE
+E.G.: mpirun -np 2 out/gammaCorrection img/galaxy.ascii.pgm 2
+
 
 ##ESECUZIONE IN CLUSTER
 PATH/mpirun -host LIST OUT
 /home/middleware/.openmpi/bin/mpirun --host 192.168.0.100,192.168.0.102 out/OUT
 
-Read: http://stackoverflow.com/questions/9269399/sending-blocks-of-2d-array-in-c-using-mpi
 */
 
 #include <mpi.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <pgm.h>
 #include <math.h>
 #include <omp.h>
 
-int applyCorrection(int input, double gamma, int depth)
-{
-	double base=(double)input/(double)depth;
-	return (int)(depth* pow(base,1/gamma));
-}
+int main (int argc, char **argv) {
 
-int main(int argc, char *argv[]) 
-{
-	int gammaParameter=2;
-	char *fileName="img/imm.pgm";
-	char *newFileName="img/imm2New.pgm";
+	int i,j;                            /* useful indexes */
 
-	int my_rank;        /* rank of process */
-	int num_procs;      /* number of processes */
-       
-	MPI_Init(&argc, &argv);          	        /* start up MPI */	
-	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);	/* find out process rank */
-	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);      /* find out number of processes */
+	int gamma=2;                        /* correction parameter */
+	gray max;                           /* maximum value */
 
-	
-	if (my_rank == 0) {		// IF I'M MASTER THREAD
-		// READ FILE'S MATRIX
-	        gray **imageArray;
-		gray max;      
-	        int row, column;
+	char *fileName="img/imm.pgm";       /* input file path */
+	char *newFileName="out/imm.pgm";    /* output file path */
+
+
+	gray **image;                       /* to get the output from netpgm's functions */
+	int *imageArray;                    /* 2D array containing the image */
+	int *procRow;                       /* the data that each processor will process */
+	int n_rows, n_cols;                 /* image dimensions */
+
+	int my_rank;                        /* rank of process */
+	int n_procs;                        /* number of processes */
+
+	int *sendcounts, *displs;           /* distribution of the numbers among processes */
+
+	// Starting MPI and retrieving some parameters
+	MPI_Init(&argc, &argv);
+	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+
+	sendcounts = malloc(n_procs*sizeof(int));
+	displs = malloc(n_procs*sizeof(int));
+
+	if (my_rank == 0) {
+
+		// Getting the arguments 
+		if ( argc == 3 ) {
+			fileName = argv[1];
+			gamma = atoi(argv[2]);
+		}
+
+		// Init netpgm library
 		pgm_init(&argc, argv);
 
+		// Get the data from the file
 		FILE *f = fopen(fileName,"r");
-		imageArray = pgm_readpgm(f, &column, &row, &max);
-		
-		// SEND PORTION OF THE MATRIX TO OTHER THREADS	
-		int numRow=round((double)row/num_procs);
-		
-		int index;  
-		for(index=1;index<num_procs;index++) 
-		{
-			//First: send packet's dimension {numRows,numCols,depth}
-			int param[3]={numRow,column,(int)max};
-			MPI_Send(param,3,MPI_INT,index,1,MPI_COMM_WORLD);
+		image = pgm_readpgm(f, &n_cols, &n_rows, &max);
 
-			//Send Packet
-			int startRow=(index-1)*(numRow);
-			MPI_Send(&imageArray[startRow][0],numRow*column,MPI_INT,index,2,MPI_COMM_WORLD);
-		}
-
-		// ATTENDS PART OF IMAGE FROM OTHER THREAD	
-		#pragma omp parallel num_threads(num_procs)   /* Add -fopenmp in mpicc command */
-		{
-			int my_num=omp_get_thread_num();
-			if(my_num==0)    /* Correct remaining rows */
-			{
-				int startRow=(index-1)*(numRow);
-				int x,y;
-				for (x = startRow; x < row; x++) 
-				{
-					for (y = 0; y < column; y++) 
-					{				  				 
-						int val=applyCorrection(imageArray[x][y],gammaParameter,(int)max);
-						imageArray[x][y]=val;	  
-					}
-				}
-			}
-			else		/* Receive correct portions */
-			{
-				MPI_Status stat;
-				int startRow=(my_num-1)*(numRow);
-				MPI_Recv(&imageArray[startRow][0],numRow*column,MPI_INT,my_num,my_num,MPI_COMM_WORLD,&stat);
+		// Allocating the data to a contiguous array
+		// TODO: maybe this can be avoided but I wasn't able to
+		imageArray = malloc(sizeof *imageArray * n_rows * n_cols);
+		for (i=0; i<n_rows; i++) {
+			for (j=0; j<n_cols; j++){
+				imageArray[j*n_rows+i] = image[i][j];
 			}
 		}
-		
-		// CREATE FINAL IMAGE
-		FILE *fout=fopen(newFileName,"w");
-    		pgm_writepgm(fout, imageArray, column, row, max, 1);
-			
-		pgm_freearray(imageArray, row);
-	} 
-	else 
-	{
-		// RECEIVE PORTION FROM MASTER
-		MPI_Status stat;
-		
-		int param[3];
-		MPI_Recv(param,3,MPI_INT,0,1,MPI_COMM_WORLD,&stat);
 
-		int imageArray[param[0]][param[1]];
-		MPI_Recv(imageArray,param[0]*param[1],MPI_INT,0,2,MPI_COMM_WORLD,&stat);
-
-		// PROCESS IMAGE WITH OPENMPFOR INCREMENT PERFORMANCE
-		int x,y;	
-		for(x=0;x<param[0];x++)
-		{
-			for(y=0;y<param[1];y++)
-			{		
-				int val=applyCorrection(imageArray[x][y],gammaParameter,param[2]);
-				imageArray[x][y]=val;	
-			}
+		// Calculating the workload distribution
+		// Rows are not important, the total array will be scattered equally...
+		int div = (n_rows*n_cols)/n_procs;
+		for(i=0; i<n_procs; i++) {
+			sendcounts[i] = div;
+			displs[i] = i*div;
 		}
-		
-		// SEND FINAL PART OF IMAGE TO MASTER THREAD
-		MPI_Send(&imageArray,param[0]*param[1],MPI_INT,0,my_rank,MPI_COMM_WORLD);
+
+		// ...except for the process with higher rank, which takes the remains of the division
+		sendcounts[n_procs-1] += (n_rows*n_cols) % n_procs;
 	}
 
+	// Broadcasting useful values from the root
+	MPI_Bcast(&max, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(&gamma, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(sendcounts, n_procs, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(displs, n_procs, MPI_INT, 0, MPI_COMM_WORLD);
 
+	// ... making sure everyone has them before starting
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	procRow = malloc(sendcounts[my_rank]*sizeof(int));
+
+	MPI_Scatterv(	imageArray, sendcounts, displs, MPI_INT,
+					procRow, sendcounts[my_rank], MPI_INT,
+					0, MPI_COMM_WORLD
+	);
+    
+	#pragma omp parallel for
+	for(i=0; i<sendcounts[my_rank]; i++) {
+		// Applying the correction
+		double base = (double)procRow[i]/(double)max;
+		procRow[i] = max*pow(base, gamma);
+	}
+
+	MPI_Gatherv(    procRow, sendcounts[my_rank], MPI_INT, 
+					imageArray, sendcounts, displs, MPI_INT,
+					0, MPI_COMM_WORLD
+		);
+
+	// Let's wait everyone before writing results
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	if (my_rank == 0) {
+		// Copy everything back
+		for (i=0; i<n_rows; i++) {
+			for (j=0; j<n_cols; j++){
+				image[i][j] = imageArray[j*n_rows+i];
+			}
+		}
+
+		// Create the resulting image
+		FILE *fout=fopen(newFileName,"w");
+		pgm_writepgm(fout, image, n_cols, n_rows, max, 1);
+
+		// Free space
+		pgm_freearray(image, n_rows);
+		free(imageArray);
+	}
+
+	// Release memory
+	free(procRow);
+
+	// That's it folks!
 	MPI_Finalize();
+
 	return 0;
 }
